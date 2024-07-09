@@ -12,23 +12,15 @@ class WebOSTVService: NSObject, ObservableObject, ConnectableDeviceDelegate, Dev
     
     private var mDevice: ConnectableDevice?
     private var deviceService: DeviceService?
-    
-    @Published var isConnected: Bool = false //연결상태
+    weak var discoveryListener: DiscoveryListener? // weak 참조로 변경
     
     func initialize(device: ConnectableDevice) {
         mDevice = device
         mDevice?.delegate = self
         deviceService?.delegate = self
-
-//        deviceService = mDevice?.service(withName: "webOS TV")
-//        deviceService?.pair(withData: DeviceServicePairingTypePinCode)
         
-        deviceService?.connect()
-        
-        DispatchQueue.main.async {
-            self.isConnected = true
-            print("isConnected : \(self.isConnected)")
-        }
+        deviceService = self.mDevice?.service(withName: "webOS TV")
+        deviceService?.connect()  //connectableDeviceConnectionRequired 함수동작 -> 핀코드 동작 설정
         
         print("연결 시도")
         print("connectedService : \(String(describing: mDevice?.connectedServiceNames()))")
@@ -36,19 +28,15 @@ class WebOSTVService: NSObject, ObservableObject, ConnectableDeviceDelegate, Dev
     }
     
     func disConnect(_ deviceService: ConnectableDevice){
-//        deviceService.service(withName: "webOS TV").disconnect()
+        //        deviceService.service(withName: "webOS TV").disconnect()
         deviceService.disconnect()
-           
-        DispatchQueue.main.async{
-            self.isConnected = false
-        }
     }
     
     
     //기기 컨트롤 매서드
     func volumeUp(){
         mDevice?.volumeControl().volumeUp(success: { _ in
-        print("volume up")
+            print("volume up")
         }, failure: { error in
             print("volume up error \(String(describing: error))")
         })
@@ -108,24 +96,17 @@ class WebOSTVService: NSObject, ObservableObject, ConnectableDeviceDelegate, Dev
     
     
     
+    
     // ConnectableDeviceDelegate 매서드
     func connectableDeviceConnectionRequired(_ device: ConnectableDevice!, for service: DeviceService!) {
         print("ServiceID \(String(describing: service.serviceDescription.serviceId))")
-        
-        DispatchQueue.main.async{
-            self.mDevice?.setPairingType(DeviceServicePairingTypePinCode)
-            self.deviceService = self.mDevice?.service(withName: "webOS TV")
-            
-        }
-       
+        //핀코드 설정
+        self.mDevice?.setPairingType(DeviceServicePairingTypePinCode)
     }
     func connectableDeviceReady(_ device: ConnectableDevice!) { //기기 연결 준비되었을 때
         print("Connected to device: \(device.friendlyName ?? "Unknown Device")")
     }
-    func connectableDevice(_ device: ConnectableDevice!, service: DeviceService!, pairingRequiredOfType pairingType: Int32, withData pairingData: Any!) {
-        print("ServiceID: \(device.friendlyName ?? "Unknown Device")")
-    }
-    func connectableDevicePairingSuccess(_ device: ConnectableDevice!, service: DeviceService!) {
+    func connectableDevicePairingSuccess(_ device: ConnectableDevice!, service: DeviceService!) { //기기 연결 되었을때
         print("pairingType:\(String(describing:deviceService?.pairingType))")
     }
     func connectableDeviceDisconnected(_ device: ConnectableDevice!, withError error: Error!) { //기기와 연결 끊어졌을 때
@@ -133,7 +114,7 @@ class WebOSTVService: NSObject, ObservableObject, ConnectableDeviceDelegate, Dev
             print("Disconnected from \(device.friendlyName ?? "Unknown Device"): \(e.localizedDescription)")
         }
     }
-
+    
     
     // DeviceServiceDelegate 매서드
     func deviceServiceConnectionRequired(_ service: DeviceService!) { // 서비스 연결 필요할 때
@@ -157,13 +138,45 @@ class WebOSTVService: NSObject, ObservableObject, ConnectableDeviceDelegate, Dev
     //페어링 관련 매서드
     func deviceService(_ service: DeviceService!, pairingRequiredOf pairingType: DeviceServicePairingType, withData pairingData: Any!) { //서비스에 페어링이 필요할 때
         print("Pairing required for service: \(service.serviceDescription?.friendlyName ?? "Unknown Device")")
-//        deviceService?.pair(withData: pairingData)
+        //        deviceService?.pair(withData: pairingData)
     }
     func deviceServicePairingSuccess(_ service: DeviceService!) { //서비스 페어링 완료되었을때
         print("Pairing success for service: \(service.serviceDescription?.friendlyName ?? "Unknown Device")")
     }
-    func deviceService(_ service: DeviceService!, pairingFailedWithError error: Error!) { //페어링 실패했을때
+    func deviceService(_ service: DeviceService!, pairingFailedWithError error: Error!) {
+        // 페어링 실패했을 때
         print("Pairing service failed with error: \(error.localizedDescription)")
-    }
+        
+        // UIAlertController 생성
+        let alertController = UIAlertController(title: "실패",
+                                                message: error.localizedDescription,
+                                                preferredStyle: .alert)
+        // OK 버튼 추가
+        let okAction = UIAlertAction(title: "확인", style: .default) { _ in
+                    self.discoveryListener?.initialize() // weak 참조를 사용하여 초기화 함수 호출
+                }
+                alertController.addAction(okAction)
+        
+        // 메인 스레드에서 경고창 표시
+        DispatchQueue.main.async {
+            // 현재 활성화된 UIWindowScene 찾기(사용중인 창에 경고창 띄우기)
+            if let windowScene = UIApplication.shared.connectedScenes
+                .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+                
+                // UIWindowScene의 첫 번째 키 윈도우 가져오기
+                if let window = windowScene.windows.first(where: { $0.isKeyWindow }) {
+                    if let rootViewController = window.rootViewController {
+                        // 최상위 ViewController 찾기
+                        var topController = rootViewController
+                        while let presentedViewController = topController.presentedViewController {
+                            topController = presentedViewController
+                        }
+                        // 경고창 표시
+                        topController.present(alertController, animated: true, completion: nil)
+                    }
+                }
+            }
+        }
+    }//deviceService 페어링 실패
     
 }

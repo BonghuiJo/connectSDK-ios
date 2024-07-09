@@ -43,22 +43,14 @@ struct ConnectSdkView: View {
                 HStack {
                     Text(device.friendlyName ?? "Unknown Device")
                     Spacer()
-                    Button(action: {
-                        if webOSTVService.isConnected {
-                            webOSTVService.disConnect(device)
-                        } else {
-                            webOSTVService.initialize(device: device)
-                            discoveryListener.disconnectFromDevice(device)
-                        }
-                    }) {
-                        Text(webOSTVService.isConnected ? "Disconnect" : "Connect")
-                            .foregroundColor(.blue)
-                    }
+                }
+                .contentShape(Rectangle()) // HStack 전체를 터치 가능 영역
+                .onTapGesture {
+                        webOSTVService.initialize(device: device) //연결매서드 호출
+                        discoveryListener.disconnectFromDevice(device)//디바이스 리스트 초기화 및 deviceStore삭제
                 }
             }
-            if discoveryListener.deviceCount == 0 {
-                Text("No devices found")
-            }
+            
             
             HStack{
                 Button(action: {

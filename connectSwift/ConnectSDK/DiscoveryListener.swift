@@ -20,10 +20,13 @@ class DiscoveryListener: NSObject, ObservableObject, DiscoveryManagerDelegate, C
     @Published var isScanning: Bool = false
 
     override init() {
-        super.init()
-        setupLocationManager()
-        initialize()
-    }
+          super.init()
+          setupLocationManager()
+          initialize()
+          
+          // WebOSTVService의 discoveryListener 설정....
+          webOSTVService.discoveryListener = self
+      }
     
     //위치 권한
     private func setupLocationManager() {
@@ -75,30 +78,36 @@ class DiscoveryListener: NSObject, ObservableObject, DiscoveryManagerDelegate, C
     
     func disconnectFromDevice(_ device: ConnectableDevice) {
         DispatchQueue.main.async {
-//            self.devices.removeAll { $0 == device }
-            self.deviceCount = self.devices.count
-            self.discoveryManager?.deviceStore.removeAll()
-            print("disconnectFromDevice 디바이스 연결 해제: \(String(describing: device.friendlyName))")
+            self.devices.removeAll { $0 == device } //검색된 디바이스 리스트 초기화
+            self.discoveryManager?.deviceStore.removeAll() //deviceStore 삭제
         }
     }
 
+    
+    
     // DiscoveryManagerDelegate methods
     func discoveryManager(_ manager: DiscoveryManager!, didFind device: ConnectableDevice!) {
+        //AirPlayService(애플기기) 모든 기기 검색
         DispatchQueue.main.async {
-            guard !self.devices.contains(device) else { return }//중복방지
-            print("onDeviceAdded: \(String(describing: device.friendlyName))")
-            self.devices.append(device)
-            self.deviceCount = self.devices.count
-            print("현재 디바이스 수: \(self.deviceCount)")
+//            guard !self.devices.contains(device) else { return }//중복방지
+//            self.devices.append(device) //검색된 디바이스 리스트 추가
+//            self.deviceCount = self.devices.count
+//            print("onDeviceAdded: \(String(describing: device.services   ))")
+//            print("onDeviceAdded: \(String(describing: device.friendlyName))")
+//            print("현재 디바이스 수: \(self.deviceCount)")
         }
     }
     func discoveryManager(_ manager: DiscoveryManager!, didUpdate device: ConnectableDevice!) {
+        //webOSService 기기 검색
         DispatchQueue.main.async {
-            print("onDeviceUpdated: \(String(describing: device.friendlyName)) \(String(describing: device.services))")
-            if let index = self.devices.firstIndex(of: device) {
-                self.devices[index] = device
-            }
+            // device.services 개수가 2개 이상인 경우에만 배열에 추가
+                   guard device.services.count >= 2 else {return}
+                   // 중복 방지
+                   guard !self.devices.contains(device) else {return}
+                   // 검색된 디바이스 리스트 추가
+                   self.devices.append(device)
         }
+        print("onDeviceUpdated: \(String(describing: device.friendlyName)) \(String(describing: device.services))")
     }
     func discoveryManager(_ manager: DiscoveryManager!, didLose device: ConnectableDevice!) {
         DispatchQueue.main.async {
